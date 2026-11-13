@@ -60,6 +60,8 @@ const MAX_SLIPPAGE_BPS = 100; // 1% past the close the order was decided on
 /** The last SMA_BARS closes, oldest first; a gap adds nothing. */
 const closes: number[] = [];
 let smaSum = 0;
+/** Closes seen in total (closes[] caps at SMA_BARS, so this counts the lookback). */
+let barsSeen = 0;
 /** Seq of the batch on which the current position first appeared, if any. */
 let holdStartSeq: number | null = null;
 
@@ -82,6 +84,7 @@ await runBars({
       if (closes.length === SMA_BARS) smaSum -= closes.shift()!;
       closes.push(c);
       smaSum += c;
+      barsSeen += 1;
     }
     if (state.warmingUp) return [];
     const held = state.positions.get(SYMBOL);
@@ -100,7 +103,7 @@ await runBars({
 
     // Flat: the only entry is a capitulation turn.
     const mean = sma240();
-    if (mean === null || closes.length < SMA_BARS + 5) return [];
+    if (mean === null || barsSeen < SMA_BARS + 5) return [];
     const close = closes[closes.length - 1];
     const fiveAgo = closes[closes.length - 6];
     const deep = close * 10000 < mean * (10000 - DEEP_BPS);
