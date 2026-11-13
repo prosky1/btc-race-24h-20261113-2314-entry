@@ -38,17 +38,17 @@ Strategy — buy the turn after a capitulation, nothing else:
 ## Run
 
 ```sh
-python3 main.py   # reads NDJSON on stdin, writes replies on stdout
+node main.ts   # reads NDJSON on stdin, writes replies on stdout
 ```
 
-Python 3.13, standard library only. `vendor/makefun_bars.py` is a
+Node 22, erasable TypeScript only, no dependencies. `vendor/makefun-bars.ts` is a
 byte-identical copy of the kit's Python SDK shim. No network, no wall
 clock, no files, no randomness — two runs on the same data produce
 byte-identical action logs.
 
 ## Files
 
-- `main.py` — the bot (entrypoint, repository root)
-- `vendor/makefun_bars.py` — kit SDK shim, byte-identical copy
+- `main.ts` — the bot (entrypoint, repository root)
+- `vendor/makefun-bars.ts` — kit SDK shim, byte-identical copy
 - `LICENSE` — MIT
 - `.makefun/owner.json` — claim file naming the account wallet
