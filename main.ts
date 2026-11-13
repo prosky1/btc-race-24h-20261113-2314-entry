@@ -20,7 +20,9 @@
 //   * Exit: take profit at +1.5% over the position's cost, stop loss at
 //     -1.5%, or a time exit after 300 bars held, whichever comes first.
 //     A sell the market refuses is simply sent again on the next bar while
-//     its reason still holds.
+//     its reason still holds. After a stop-loss exit the bot sits out 60
+//     bars: a failed turn means the decline is still running, and
+//     re-entering at once only re-buys the knife.
 //   * Sizing: one full-size buy (all cash). A full-size round trip pays
 //     about 26 bps in fee, slippage and pool impact, so the +1.5% target
 //     leaves a real margin; smaller trades would pay the same fixed bps
@@ -56,6 +58,9 @@ const TAKE_PROFIT_BPS = 150; // exit at +1.5% over cost
 const STOP_LOSS_BPS = 150; // exit at -1.5% under cost
 const MAX_HOLD_BARS = 300; // time exit after 300 bars held
 const MAX_SLIPPAGE_BPS = 100; // 1% past the close the order was decided on
+const COOLDOWN_BARS = 60; // after a stop-loss exit, sit out this many bars:
+// a stop means the turn failed, and the bars right after a failed turn in
+// the dev window kept falling; re-entering at once only re-buys the knife.
 
 /** The last SMA_BARS closes, oldest first; a gap adds nothing. */
 const closes: number[] = [];
@@ -64,6 +69,8 @@ let smaSum = 0;
 let barsSeen = 0;
 /** Seq of the batch on which the current position first appeared, if any. */
 let holdStartSeq: number | null = null;
+/** Entries are blocked while state.seq is below this (after a stop-loss). */
+let cooldownUntilSeq = -1;
 
 function sma240(): number | null {
   if (closes.length < SMA_BARS) return null;
@@ -96,7 +103,10 @@ await runBars({
       const cost = held.cost;
       // Exits, in bps of cost, cross-multiplied in bigint.
       if (value * 10000n >= cost * BigInt(10000 + TAKE_PROFIT_BPS)) return sellAll(state);
-      if (value * 10000n <= cost * BigInt(10000 - STOP_LOSS_BPS)) return sellAll(state);
+      if (value * 10000n <= cost * BigInt(10000 - STOP_LOSS_BPS)) {
+        cooldownUntilSeq = state.seq + COOLDOWN_BARS;
+        return sellAll(state);
+      }
       if (holdStartSeq !== null && state.seq - holdStartSeq >= MAX_HOLD_BARS) return sellAll(state);
       return [];
     }
@@ -104,6 +114,7 @@ await runBars({
     // Flat: the only entry is a capitulation turn.
     const mean = sma240();
     if (mean === null || barsSeen < SMA_BARS + 5) return [];
+    if (state.seq < cooldownUntilSeq) return [];
     const close = closes[closes.length - 1];
     const fiveAgo = closes[closes.length - 6];
     const deep = close * 10000 < mean * (10000 - DEEP_BPS);
